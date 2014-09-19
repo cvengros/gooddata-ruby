@@ -173,6 +173,13 @@ module GoodData
         end
       end
 
+      # Return true if the report definition is a chart
+      #
+      # @return [Boolean] Return true if report definition is a chart
+      def chart?
+        !table?
+      end
+
       def create(options = { :client => GoodData.connection, :project => GoodData.project })
         client = options[:client]
         fail ArgumentError, 'No :client specified' if client.nil?
@@ -361,6 +368,13 @@ module GoodData
         content['filters'] = filters.map { |filter_expression| { 'expression' => filter_expression.gsub(uri_what, uri_for_what) } }
       end
       self
+    end
+
+    # Return true if the report definition is a table
+    #
+    # @return [Boolean] Return true if report definition is a table
+    def table?
+      content['format'] == 'grid'
     end
   end
 end
