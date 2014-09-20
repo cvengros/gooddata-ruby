@@ -1,5 +1,9 @@
 # GoodData Ruby SDK Changelog
 
+## 0.6.11
+- Added table?/chart? helpers to report definition
+- Added all fact aggregations
+
 ## 0.6.10
 - Fixed client default missing in ProjectMetadata
 - Listing schedules on processes is working
