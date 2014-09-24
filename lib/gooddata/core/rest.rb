@@ -95,6 +95,11 @@ module GoodData
       connection.download(file, where, options.merge(:staging_url => url))
     end
 
+    def download_from_project_webdav(file, where, options = {})
+      url = get_project_webdav_path(file, options)
+      connection.download(file, where, options.merge(:staging_url => url))
+    end
+
     # Generalizaton of poller. Since we have quite a variation of how async proceses are handled
     # this is a helper that should help you with resources where the information about "Are we done"
     # is the http code of response. By default we repeat as long as the code == 202. You can

@@ -15,8 +15,6 @@ module GoodData
     include GoodData::Mixin::RestResource
     root_key :metric
 
-    PARSE_MAQL_OBJECT_REGEXP = /\[([^\]]+)\]/
-
     class << self
       # Method intended to get all objects of that type in a specified project
       #
@@ -28,7 +26,7 @@ module GoodData
       end
 
       def xcreate(metric, options = { :client => GoodData.connection, :project => GoodData.project })
-        create(metric, options.merge(:extended_notation => true))
+        create(metric, {:extended_notation => true}.merge(options))
       end
 
       def create(metric, options = { :client => GoodData.connection, :project => GoodData.project })
@@ -209,27 +207,7 @@ module GoodData
     # Looks up the readable values of the objects used inside of MAQL epxpressions. Labels and elements titles are based on the primary label.
     # @return [String] Ther resulting MAQL like expression
     def pretty_expression
-      opts = {
-        :client => client,
-        :project => project
-      }
-
-      temp = expression.dup
-      pairs = expression.scan(PARSE_MAQL_OBJECT_REGEXP).pmap do |uri|
-        uri = uri.first
-        if uri =~ /elements/
-          [uri, Attribute.find_element_value(uri, opts)]
-        else
-          [uri, GoodData::MdObject[uri, opts].title]
-        end
-      end
-
-      pairs.each do |el|
-        uri = el[0]
-        obj = el[1]
-        temp.sub!(uri, obj)
-      end
-      temp
+      GoodData::SmallGoodZilla.pretty_print(expression, project: project, client: client)
     end
   end
 end

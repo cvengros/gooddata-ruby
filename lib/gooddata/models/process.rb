@@ -46,7 +46,6 @@ module GoodData
         Process[:all]
       end
 
-      # TODO: Check the params.
       def with_deploy(dir, options = {}, &block)
         client = options[:client]
         fail ArgumentError, 'No :client specified' if client.nil?
@@ -57,17 +56,17 @@ module GoodData
         project = GoodData::Project[p, options]
         fail ArgumentError, 'Wrong :project specified' if project.nil?
 
-        GoodData.with_project(project) do
+        client.with_project(project) do
           params = options[:params].nil? ? [] : [options[:params]]
           if block
             begin
-              res = GoodData::Process.deploy(dir, options.merge(:files_to_exclude => params))
+              res = GoodData::Process.deploy(dir, options.merge(:files_to_exclude => param_file))
               block.call(res)
             ensure
               res.delete if res
             end
           else
-            GoodData::Process.deploy(dir, options.merge(:files_to_exclude => params))
+            GoodData::Process.deploy(dir, options.merge(:files_to_exclude => param_file))
           end
         end
       end
@@ -247,12 +246,21 @@ module GoodData
     def execute(executable, options = {})
       params = options[:params] || {}
       hidden_params = options[:hidden_params] || {}
+
+      # if type == :graph
+      #   res = params.keys.any? {|key| params[key].is_a?(Hash) || params[key].is_a?(Array)}
+      #   fail "CloudConnect process does not support any nested sctrucutres." if res
+      # else
+      #   params = {:params => MultiJson.encode(options[:params] || {})}
+      #   hidden_params = {:hidden_params => MultiJson.encode(options[:hidden_params] || {})}
+      # end
+
       result = client.post(executions_link,
-                           :execution => {
-                             :graph => executable.to_s,
-                             :params => params,
-                             :hiddenParams => hidden_params
-                           })
+                             :execution => {
+                               :graph => executable.to_s,
+                               :params => params,
+                               :hiddenParams => hidden_params
+                             })
       begin
         client.poll_on_code(result['executionTask']['links']['poll'])
       rescue RestClient::RequestFailed => e

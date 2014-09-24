@@ -52,7 +52,7 @@ module GoodData
       end
 
       def diff_list(list1, list2)
-        tmp = Hash[list1.map { |v| [v.email, v] }]
+        tmp = Hash[list1.map { |v| [v.login, v] }]
 
         res = {
           :added => [],
@@ -62,7 +62,7 @@ module GoodData
         }
 
         list2.each do |user_new|
-          user_existing = tmp[user_new.email]
+          user_existing = tmp[user_new.login]
           if user_existing.nil?
             res[:added] << user_new
             next
@@ -79,9 +79,9 @@ module GoodData
           end
         end
 
-        tmp = Hash[list2.map { |v| [v.email, v] }]
+        tmp = Hash[list2.map { |v| [v.login, v] }]
         list1.each do |user_existing|
-          user_new = tmp[user_existing.email]
+          user_new = tmp[user_existing.login]
           if user_new.nil?
             res[:removed] << user_existing
             next
@@ -304,6 +304,8 @@ module GoodData
     end
 
     # Gets first role
+    #
+    # @return [GoodData::ProjectRole] Array of project roles
     def role
       roles.first
     end
@@ -358,7 +360,7 @@ module GoodData
     #
     # @return [String] Object URI
     def uri
-      @json['user']['links']['self']
+      links['self']
     end
 
     # Enables membership
@@ -373,6 +375,27 @@ module GoodData
     # @return result from post execution
     def disable
       self.status = 'disabled'
+    end
+
+    def data
+      data = @json || {}
+      data['user'] || {}
+    end
+
+    def meta
+      data['meta'] || {}
+    end
+
+    def links
+      data['links'] || {}
+    end
+
+    def content
+      data['content'] || {}
+    end
+
+    def to_hash
+      content.merge(meta).merge({'uri' => uri}).symbolize_keys
     end
 
     private

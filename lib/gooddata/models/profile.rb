@@ -372,11 +372,29 @@ module GoodData
       @json['accountSetting']['links']['self']
     end
 
-    private
+    # private
+    # 
+    # def initialize(json)
+    #   @json = json
+    #   @user = @json['accountSetting']['firstName'] + ' ' + @json['accountSetting']['lastName']
+    # end
 
-    def initialize(json)
-      @json = json
-      @user = @json['accountSetting']['firstName'] + ' ' + @json['accountSetting']['lastName']
+    def data
+      data = @json || {}
+      data['accountSetting'] || {}
+    end
+
+    def links
+      data['links'] || {}
+    end
+
+    def content
+      keys = (data.keys - ['links'])
+      data.slice(*keys)
+    end
+
+    def to_hash
+      content.merge({'uri' => uri}).symbolize_keys
     end
   end
 end
