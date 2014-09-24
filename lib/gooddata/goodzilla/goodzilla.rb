@@ -35,16 +35,21 @@ module GoodData
     # Pretty prints the MAQL expression. This basically means it finds out names of objects and elements and print their values instead of URIs
     # @param expression [String] Expression to be beautified
     # @return [String] Pretty printed MAQL expression
-    def self.pretty_print(expression)
+    def self.pretty_print(expression, opts = { client: GoodData.connection, project: GoodData.project})
       temp = expression.dup
-      expression.scan(PARSE_MAQL_OBJECT_REGEXP).each do |uri|
+      pairs = expression.scan(PARSE_MAQL_OBJECT_REGEXP).pmap do |uri|
         uri = uri.first
         if uri =~ /elements/
-          temp.sub!(uri, Attribute.find_element_value(uri))
+          [uri, Attribute.find_element_value(uri, opts)]
         else
-          obj = GoodData::MdObject[uri]
-          temp.sub!(uri, obj.title)
+          [uri, GoodData::MdObject[uri, opts].title]
         end
+      end
+
+      pairs.each do |el|
+        uri = el[0]
+        obj = el[1]
+        temp.sub!(uri, obj)
       end
       temp
     end
