@@ -8,18 +8,18 @@ describe GoodData::Schedule do
 
   before(:each) do
     @client = ConnectionHelper.create_default_connection
-
+  
     @project = ProjectHelper.get_default_project(:client => @client)
-
+  
     @project_executable = "./graph/graph.grf"
-
+  
     @test_data = {
       :timezone => 'UTC',
       :cron => '2 2 2 2 *',
       :client => @client,
       :project => @project
     }
-
+  
     @test_data_with_optional_param = {
       :timezone => 'UTC',
       :cron => '2 2 2 2 *',
@@ -83,7 +83,7 @@ describe GoodData::Schedule do
       expect {
         sched = @project.create_schedule(ProcessHelper::PROCESS_ID, @test_cron, @project_executable, @test_data_with_optional_param)
       }.not_to raise_error
-
+    
       sched.should_not be_nil
       sched.delete
     end
@@ -164,11 +164,11 @@ describe GoodData::Schedule do
     before(:each) do
       @schedule = @project.create_schedule(ProcessHelper::PROCESS_ID, @test_cron, @project_executable, @test_data)
     end
-
+    
     after(:each) do
       @schedule.delete
     end
-
+    
     it 'Should return executable as string' do
       res = @schedule.executable
       res.should_not be_nil
@@ -446,11 +446,11 @@ describe GoodData::Schedule do
     before(:each) do
       @schedule = @project.create_schedule(ProcessHelper::PROCESS_ID, @test_cron, @project_executable, @test_data_with_optional_param)
     end
-
+  
     after(:each) do
       @schedule.delete
     end
-
+  
     it 'Should return reschedule as integer' do
       res = @schedule.reschedule
       res.should_not be_nil
@@ -462,14 +462,14 @@ describe GoodData::Schedule do
     before(:each) do
       @schedule = @project.create_schedule(ProcessHelper::PROCESS_ID, @test_cron, @project_executable, @test_data_with_optional_param)
     end
-
+  
     after(:each) do
       @schedule.delete
     end
-
+  
     it 'Assigns the reschedule and marks the object dirty' do
       test_reschedule = 45
-
+  
       @schedule.reschedule = test_reschedule
       expect(@schedule.reschedule).to eq(test_reschedule)
       expect(@schedule.dirty).to eq(true)

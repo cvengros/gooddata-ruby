@@ -151,6 +151,13 @@ module GoodData
       Time.parse(@json['user']['meta']['created'])
     end
 
+    # Is the member deleted?
+    #
+    # @return [Boolean] true if he is deleted
+    def deleted?
+      !!(self.login =~ /^deleted-/)
+    end
+    
     # Gets hash representing diff of users
     #
     # @param user [GoodData::User] Another profile to compare with
@@ -275,11 +282,11 @@ module GoodData
       @json['user']['links']['self']
     end
 
-    # Gets project which this membership relates to
-    def project
-      raw = client.get project_url
-      client.factory.create(GoodData::Project, raw)
-    end
+    # # Gets project which this membership relates to
+    # def project
+    #   raw = client.get project_url
+    #   client.factory.create(GoodData::Project, raw)
+    # end
 
     # Gets project id
     def project_id
@@ -365,16 +372,32 @@ module GoodData
 
     # Enables membership
     #
-    # @return result from post execution
+    # @return [GoodData::Membership] returns self
     def enable
-      self.status = 'enabled'
+      self.status = 'ENABLED'
+      self
+    end
+
+    # Is the member enabled?
+    #
+    # @return [Boolean] true if it is enabled
+    def enabled?
+      self.status == 'ENABLED'
     end
 
     # Disables membership
     #
-    # @return result from post execution
+    # @return [GoodData::Membership] returns self
     def disable
-      self.status = 'disabled'
+      self.status = 'DISABLED'
+      self
+    end
+
+    # Is the member enabled?
+    #
+    # @return [Boolean] true if it is disabled
+    def disabled?
+      !enabled?
     end
 
     def data
@@ -414,7 +437,10 @@ module GoodData
         }
       }
 
-      @json = client.post("/gdc/projects/#{project_id}/users", payload)
+      res = client.post("/gdc/projects/#{project_id}/users", payload)
+      fail "Update failed" unless res['projectUsersUpdateResult']['failed'].empty?
+      @json['user']['content']['status'] = new_status.to_s.upcase
+      self
     end
   end
 end

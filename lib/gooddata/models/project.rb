@@ -172,7 +172,7 @@ module GoodData
     #
     # @return [Boolean] True if user has admin role in the project, false otherwise.
     def am_i_admin?
-      user_has_role?(GoodData.user, 'admin')
+      user_has_role?(client.user, 'admin')
     end
 
     # Helper for getting attributes of a project
@@ -280,7 +280,7 @@ module GoodData
     end
 
     def data_permissions
-      GoodData::MandatoryUserFilter.all
+      GoodData::MandatoryUserFilter.all(client: client, project: self)
     end
 
     # Deletes project
@@ -429,6 +429,18 @@ module GoodData
       nil
     end
 
+    # Gets user by its email, full_name, login or uri
+    #
+    # @param [String] name Name to look for
+    # @param [Array<GoodData::User>]user_list Optional cached list of users used for look-ups
+    # @return [GoodDta::Membership] User
+    def find_user_by_login(login, user_list = users)
+      return login if login.instance_of?(GoodData::Membership)
+      return member(login) if login.instance_of?(GoodData::Profile)
+      login.downcase!
+      user_list.find { |u| u.login.downcase == login }
+    end
+
     # Exports project users to file
     def import_users(path, opts = { :header => true }, &block)
       opts[:path] = path
@@ -536,7 +548,7 @@ module GoodData
     # @param role_name [String || GoodData::ProjectRole] Project role cna be given by either string or GoodData::ProjectRole object
     # @return [Boolean] Tru if user has role_name
     def user_has_role?(user, role_name)
-      member = get_user(user)
+      member = find_user_by_login(user)
       role = get_role(role_name)
       member.roles.include?(role)
     rescue
@@ -675,6 +687,10 @@ module GoodData
     # @return [Boolean] true if is member else false
     def member?(profile, list = members)
       !member(profile, list).nil?
+    end
+
+    def members?(profiles, list = members)
+      profiles.map {|p| member?(p, list)}
     end
 
     # Gets raw resource ID
@@ -887,33 +903,33 @@ module GoodData
     def users
       tmp = client.get @json['project']['links']['users']
       tmp['users'].map do |user|
-        client.factory.create(GoodData::Membership, user)
+        client.create(GoodData::Membership, user, project: self)
       end
     end
 
     alias_method :members, :users
 
-    def users_create(list, role_list = roles)
+    def create_users(list, role_list = roles)
       domains = {}
       list.map do |user|
         begin
           # TODO: Add user here
           domain_name = user.json['user']['content']['domain']
-
+    
           # Lookup for domain in cache'
           domain = domains[domain_name]
-
+    
           # Get domain info from REST, add to cache
           if domain.nil?
             domain = {
-              :domain => GoodData::Domain[domain_name],
-              :users => GoodData::Domain[domain_name].users
+              :domain => client.domain(domain_name),
+              :users => client.domain(domain_name).users
             }
-
+    
             domain[:users_map] = Hash[domain[:users].map { |u| [u.login, u] }]
             domains[domain_name] = domain
           end
-
+    
         # # Get domain info from REST, add to cache
         # if domain.nil?
         #   d = GoodData::Domain[domain_name, { :client => client }]
@@ -921,18 +937,18 @@ module GoodData
         #     :domain => d,
         #     :users => d.users(:client => client)
         #   }
-
+    
           # Check if user exists in domain
           domain_user = domain[:users_map][user.login]
           fail ArgumentError, "Trying to add user '#{user.login}' which is not valid user in domain '#{domain_name}'" if domain_user.nil?
-
+    
           # Lookup for role
           role_name = user.json['user']['content']['role'] || 'readOnlyUser'
           role = get_role(role_name, role_list)
           fail ArgumentError, "Invalid role name specified '#{role_name}' for user '#{user.email}'" if role.nil?
-
+    
           # Assign user project role
-          set_user_roles(domain_user, [role.uri], role_list)
+          set_user_roles(domain_user, [role.uri], roles: role_list)
           { type: :user_added_to_project, user: domain_user }
         rescue ArgumentError => e
           { type: :errors, reason: e}
@@ -947,24 +963,13 @@ module GoodData
       end
 
       whitelist_proc = Proc.new do |user|
-        whitelist.any? { |wl| user.login.include?(wl) }
+        whitelist.any? { |wl| wl.is_a?(Regexp) ? user.login =~ wl : user.login.include?(wl) }
       end
 
       [new_users.reject(&whitelist_proc), users.reject(&whitelist_proc)]
     end
 
-    # Imports users from CSV
-    #
-    # # Features
-    # - Create new users
-    # - Delete old users
-    # - Update existing users
-    #
-    # CSV Format
-    # TODO: Describe CSV Format here
-    #
-    # @param path CSV file to be loaded
-    # @param opts Optional additional options
+    # Imports users
     def users_import(new_users, options = {})
       domain = options[:domain]
       whitelisted_new_users, whitelisted_users = whitelist_users(new_users, options[:whitelists])
@@ -974,12 +979,11 @@ module GoodData
       # Diff users
       diff = GoodData::Membership.diff_list(whitelisted_users, whitelisted_new_users)
       results = []
-
       # Create domain users
-      results.concat GoodData::Domain.users_create(diff[:added], domain)
+      results.concat domain.create_users(diff[:added])
       # Create new users
       role_list = roles
-      results.concat users_create(diff[:added], role_list)
+      results.concat create_users(diff[:added], role_list)
 
       # Get changed users objects from hash
       list = diff[:changed].map do |user|
@@ -998,20 +1002,11 @@ module GoodData
       end
 
       # Update existing users
-      results.concat set_users_roles(list, role_list)
+      results.concat set_users_roles(list, roles: role_list)
 
       # Remove old users
-      results.concat users_remove(diff[:removed])
+      results.concat(diff[:removed].pmap { |u| u.disable })
       results
-    end
-
-    # Disable users
-    #
-    # @param list List of users to be disabled
-    def users_remove(list)
-      list.pmap do |user|
-        user.disable
-      end
     end
 
     # Update user
@@ -1019,14 +1014,21 @@ module GoodData
     # @param user User to be updated
     # @param desired_roles Roles to be assigned to user
     # @param role_list Optional cached list of roles used for lookups
-    def set_user_roles(user, desired_roles, role_list = roles)
-      if user.is_a? String
-        user = get_user(user)
-        fail ArgumentError, "Invalid user '#{user}' specified" if user.nil?
+    def set_user_roles(login, desired_roles, options = {})
+      role_list = options[:roles] || roles
+      domain = client.domain(options[:domain]) if options[:domain]
+
+      user = if login.is_a?(String) || (login.respond_to?(:uri) && login.uri.nil?)
+        login_to_search = login.is_a?(String) ? login : login.login
+        project_user = find_user_by_login(login_to_search)
+        domain_user = domain.find_user_by_login(login_to_search) if domain && !project_user
+        fail ArgumentError, "Invalid user '#{login_to_search}' specified" if !project_user && !domain_user
+        project_user || domain_user
+      else
+        login
       end
 
       desired_roles = [desired_roles] unless desired_roles.is_a? Array
-
       roles = desired_roles.map do |role_name|
         role = get_role(role_name, role_list)
         fail ArgumentError, "Invalid role '#{role_name}' specified for user '#{user.email}'" if role.nil?
@@ -1046,7 +1048,7 @@ module GoodData
         }
       }
 
-      client.post url, payload
+      client.post(url, payload)
     end
 
     alias_method :add_user, :set_user_roles
@@ -1055,21 +1057,24 @@ module GoodData
     #
     # @param list List of users to be updated
     # @param role_list Optional list of cached roles to prevent unnecessary server round-trips
-    def set_users_roles(list, role_list = roles)
+    def set_users_roles(list, options = {})
+      role_list = options[:roles] || roles
       list.pmap do |user_hash|
         begin
           user = user_hash[:user]
-          roles = user_hash[:role] || user_hash[:roles]
+          desired_roles = user_hash[:role] || user_hash[:roles]
           {
             type: :role_set,
             user: user,
-            result: set_user_roles(user, roles, role_list)
+            result: add_user(user, desired_roles, options.merge(roles: role_list))
           }
         rescue RuntimeError => e
           { type: :errors, reason: e}
         end
       end
     end
+
+    alias_method :add_users, :set_users_roles
 
     # Run validation on project
     # Valid settins for validation are (default all):

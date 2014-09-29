@@ -15,4 +15,31 @@ module ProjectHelper
   def self.get_default_project(opts = { :client => GoodData.connection })
     GoodData::Project[PROJECT_ID, opts]
   end
+
+  def self.create_random_user
+    num = rand(1e6)
+    login = "gemtest#{num}@gooddata.com"
+
+    json = {
+      'user' => {
+        'content' => {
+          'email' => login,
+          'login' => login,
+          'firstname' => 'the',
+          'lastname' => num.to_s,
+
+          # Following lines are ugly hack
+          'role' => 'editor',
+          'password' => CryptoHelper.generate_password,
+          'domain' => ConnectionHelper::DEFAULT_DOMAIN,
+
+          # And following lines are even much more ugly hack
+          # 'sso_provider' => '',
+          # 'authentication_modes' => ['sso', 'password']
+        },
+        'meta' => {}
+      }
+    }
+    GoodData::Membership.new(json)
+  end
 end

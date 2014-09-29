@@ -2,7 +2,7 @@
 
 module GoodData
 
-  class UserFilter
+  class UserFilter < GoodData::Rest::Object
 
     def initialize(data)
       @dirty = false
@@ -30,7 +30,7 @@ module GoodData
     # @return [GoodData::Project | GoodData::Profile] Related object
     def related
       uri = related_uri
-      level == :project ? GoodData::Project[uri] : GoodData::Profile.new(GoodData.get(uri))
+      level == :project ? client.projects(uri) : client.create(GoodData::Profile, client.get(uri))
     end
 
     # Returns the the object of this filter is related to. It can be either project or a user
@@ -38,7 +38,7 @@ module GoodData
     # @return [GoodData::Project | GoodData::Profile] Related object
     def variable
       uri = @json['prompt']
-      GoodData::Variable[uri]
+      GoodData::Variable[uri, client: client, project: project]
     end
 
     # Returns the level this filter is applied on. Either project or filter.
@@ -89,7 +89,7 @@ module GoodData
     #
     # @return [String]
     def pretty_expression
-      SmallGoodZilla.pretty_print(expression)
+      SmallGoodZilla.pretty_print(expression, client: client)
     end
 
     # Returns hash representation of the filter
@@ -103,7 +103,7 @@ module GoodData
     #
     # @return [String]
     def delete
-      GoodData.delete(uri)
+      client.delete(uri)
     end
   end
 end

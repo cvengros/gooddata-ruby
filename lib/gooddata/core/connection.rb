@@ -374,17 +374,5 @@ module GoodData
         authenticate
       end
     end
-
-    def scrub_params(params, keys)
-      keys = keys.reduce([]) { |a, e| a.concat([e.to_s, e.to_sym]) }
-
-      new_params = params.deep_dup
-      GoodData::Helpers.hash_dfs(new_params) do |k, key|
-        keys.each do |key_to_scrub|
-          k[key_to_scrub] = ('*' * k[key_to_scrub].length) if k && k.key?(key_to_scrub) && k[key_to_scrub]
-        end
-      end
-      new_params
-    end
   end
 end

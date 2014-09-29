@@ -60,13 +60,13 @@ module GoodData
           params = options[:params].nil? ? [] : [options[:params]]
           if block
             begin
-              res = GoodData::Process.deploy(dir, options.merge(:files_to_exclude => param_file))
+              res = GoodData::Process.deploy(dir, options.merge(:files_to_exclude => params))
               block.call(res)
             ensure
               res.delete if res
             end
           else
-            GoodData::Process.deploy(dir, options.merge(:files_to_exclude => param_file))
+            GoodData::Process.deploy(dir, options.merge(:files_to_exclude => params))
           end
         end
       end

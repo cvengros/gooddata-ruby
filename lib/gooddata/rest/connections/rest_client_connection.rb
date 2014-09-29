@@ -57,7 +57,7 @@ module GoodData
         # @param uri [String] Target URI
         def put(uri, data, options = {})
           payload = data.is_a?(Hash) ? data.to_json : data
-          GoodData.logger.debug "PUT: #{@server.url}#{uri}, #{scrub_params(data, [:password, :login, :authorizationToken])}"
+          GoodData.logger.debug "PUT: #{@server.url}#{uri}, #{scrub_params(data, [:password, :login, :authorizationToken, :verifyPassword])}"
           profile "PUT #{uri}" do
             b = proc { @server[uri].put payload, cookies }
             process_response(options, &b)
@@ -68,7 +68,7 @@ module GoodData
         #
         # @param uri [String] Target URI
         def post(uri, data, options = {})
-          GoodData.logger.debug "POST: #{@server.url}#{uri}, #{scrub_params(data, [:password, :login, :authorizationToken])}"
+          GoodData.logger.debug "POST: #{@server.url}#{uri}, #{scrub_params(data, [:password, :login, :authorizationToken, :verifyPassword])}"
           profile "POST #{uri}" do
             payload = data.is_a?(Hash) ? data.to_json : data
             b = proc { @server[uri].post payload, cookies }
@@ -153,7 +153,7 @@ module GoodData
             GoodData.logger.debug "Response: #{result.inspect}"
           elsif ['text/plain;charset=UTF-8', 'text/plain; charset=UTF-8', 'text/plain'].include?(content_type)
             result = response
-            GoodData.logger.debug 'Response: plain text'
+            GoodData.logger.debug "Response: plain text - #{result[0..99]}"
           elsif content_type == 'application/zip'
             result = response
             GoodData.logger.debug 'Response: a zipped stream'

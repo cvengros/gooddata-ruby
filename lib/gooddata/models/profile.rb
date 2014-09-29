@@ -63,7 +63,7 @@ module GoodData
       # @return [GoodData::Profile] New profile instance
       def create(attributes)
         json = EMPTY_OBJECT.dup
-        res = GoodData::Profile.new(json)
+        res = client.create(GoodData::Profile, json)
 
         attributes.each do |k, v|
           res.send("#{k}=", v) if ASSIGNABLE_MEMBERS.include? k
@@ -76,7 +76,7 @@ module GoodData
       # Gets user currently logged in
       # @return [GoodData::Profile] User currently logged-in
       def current
-        GoodData.connection.user
+        client.user
       end
 
       # Gets hash representing diff of profiles
@@ -337,7 +337,7 @@ module GoodData
 
         if uri && !uri.empty?
           url = "/gdc/account/profile/#{obj_id}"
-          @json = GoodData.put url, raw
+          @json = client.put url, raw
           @dirty = false
         end
       end

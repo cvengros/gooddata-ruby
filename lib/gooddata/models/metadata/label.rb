@@ -67,7 +67,7 @@ module GoodData
 
     def values_count(options = {})
       limit = options[:limit] || 100
-      results = GoodData.post("#{uri}/validElements?limit=#{limit}&offset=0&order=asc", {})
+      results = client.post("#{uri}/validElements?limit=#{limit}&offset=0&order=asc", {})
       results["validElements"]["paging"]["total"].to_i
     end
 

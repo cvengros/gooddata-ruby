@@ -5,6 +5,7 @@ require 'gooddata/models/domain'
 describe GoodData::Domain do
   before(:each) do
     @client = ConnectionHelper.create_default_connection
+    @domain = @client.domain(ConnectionHelper::DEFAULT_DOMAIN)
   end
 
   after(:each) do
@@ -17,10 +18,9 @@ describe GoodData::Domain do
         :domain => ConnectionHelper::DEFAULT_DOMAIN,
         :login => "gemtest#{rand(1e6)}@gooddata.com",
         :password => CryptoHelper.generate_password,
-        :client => @client
       }
 
-      user = GoodData::Domain.add_user(args)
+      user = @domain.add_user(args, client: @client)
       expect(user).to be_an_instance_of(GoodData::Profile)
       user.delete
     end
@@ -28,7 +28,7 @@ describe GoodData::Domain do
 
   describe '#users' do
     it 'Should list users' do
-      users = GoodData::Domain.users(ConnectionHelper::DEFAULT_DOMAIN, :client => @client)
+      users = @domain.users
       expect(users).to be_instance_of(Array)
       users.each do |user|
         expect(user).to be_an_instance_of(GoodData::Profile)
@@ -36,7 +36,7 @@ describe GoodData::Domain do
     end
 
     it 'Accepts pagination options - limit' do
-      users = GoodData::Domain.users(ConnectionHelper::DEFAULT_DOMAIN, {:client => @client, :limit =>1})
+      users = @domain.users(limit: 1)
       expect(users).to be_instance_of(Array)
       users.each do |user|
         expect(user).to be_an_instance_of(GoodData::Profile)
@@ -44,7 +44,7 @@ describe GoodData::Domain do
     end
 
     it 'Accepts pagination options - offset' do
-      users = GoodData::Domain.users(ConnectionHelper::DEFAULT_DOMAIN, {:client => @client, :offset => 1})
+      users = @domain.users(offset: 1)
       expect(users).to be_instance_of(Array)
       users.each do |user|
         expect(user).to be_an_instance_of(GoodData::Profile)
@@ -52,61 +52,56 @@ describe GoodData::Domain do
     end
   end
 
-  describe '#users_create' do
+  describe '#create_users' do
     it 'Creates new users from list' do
-      list = []
-      (0...10).each do |i|
-        num = rand(1e6)
-        login = "gemtest#{num}@gooddata.com"
-
-        json = {
-          'user' => {
-            'content' => {
-              'email' => login,
-              'login' => login,
-              'firstname' => 'the',
-              'lastname' => num.to_s,
-
-              # Following lines are ugly hack
-              'role' => 'admin',
-              'password' => CryptoHelper.generate_password,
-              'domain' => ConnectionHelper::DEFAULT_DOMAIN,
-
-              # And following lines are even much more ugly hack
-              # 'sso_provider' => '',
-              # 'authentication_modes' => ['sso', 'password']
-            },
-            'meta' => {}
-          }
-        }
-        user = GoodData::Membership.new(json)
-        list << user
-      end
-
-      res = GoodData::Domain.users_create(list, ConnectionHelper::DEFAULT_DOMAIN, :client => @client)
-
-      expect(res).to be_an_instance_of(Array)
+      list = (0...10).to_a.map { |i| ProjectHelper.create_random_user }
+      res = @domain.create_users(list)
 
       # no errors
       expect(res.select { |x| x[:type] == :user_added_to_domain }.count).to eq res.count
+      expect(@domain.members?(list.map(&:login)).all?).to be_true
 
       res.map { |r| r[:user] }.each do |r|
         expect(r).to be_an_instance_of(GoodData::Profile)
         r.delete
       end
     end
-  end
 
-  describe '#users_create' do
-    it 'Update a users from list' do
-
-      domain = GoodData::Domain[ConnectionHelper::DEFAULT_DOMAIN]
-      user = domain.users.sample
+    it 'Update a user' do
+      user = @domain.users.sample
       login = user.login
-      user.first_name = user.first_name.reverse
-      GoodData::Domain.users_create([user.to_hash], ConnectionHelper::DEFAULT_DOMAIN)
-      changed_user = domain.users.find { |user| user.login == login }
-      expect(changed_user.first_name).to eq user.first_name
+      name = user.first_name
+
+      user.first_name = name.reverse
+      @domain.create_users([user])
+      changed_user = @domain.member(login)
+      expect(changed_user.first_name).to eq name.reverse
+
+      user.first_name = name
+      @domain.create_users([user])
+      reverted_user = @domain.member(login)
+      expect(reverted_user.first_name).to eq name
+    end
+
+    it 'Fails with an exception if you try to create a user that is in a different domain' do
+      user = ProjectHelper.create_random_user
+      user.login = 'svarovsky@gooddata.com'
+      expect do
+        @domain.create_user(user)
+      end.to raise_exception(GoodData::UserInDifferentDomainError)
+    end
+
+    it 'updates properties of a profile' do
+      user = @domain.users
+        .reject { |u| u.login == ConnectionHelper::DEFAULT_USERNAME }.sample
+
+      old_email = user.email
+      user.email = 'john.doe@gooddata.com'
+      @domain.update_user(user)
+      expect(@domain.member(user.login).email).to eq 'john.doe@gooddata.com'
+      user.email = old_email
+      @domain.update_user(user)
+      expect(@domain.member(user.login).email).to eq old_email
     end
   end
 end

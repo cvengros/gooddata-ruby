@@ -87,7 +87,7 @@ module GoodData
           end
 
           # HACK: This line assigns class instance # if not done yet
-          @@instance = client # rubocop:disable ClassVars
+          # @@instance = client # rubocop:disable ClassVars
           client
         end
 
@@ -129,7 +129,7 @@ module GoodData
       end
 
       def create_project(options = {})
-        GoodData::Project.create(title: 'Project for schedule testing', auth_token: ConnectionHelper::GD_PROJECT_TOKEN, client: self)
+        GoodData::Project.create({ client: self }.merge(options))
       end
 
       def create_project_from_blueprint(blueprint, options = {})
