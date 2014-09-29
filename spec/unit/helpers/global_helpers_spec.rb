@@ -76,7 +76,7 @@ describe GoodData::Helpers do
         :password=>"jindrisska",
         :domain=>"gooddata-tomas-svarovsky"
       }
-      diff = GoodData::Helpers.diff([x], [y], key: :logn)
+      diff = GoodData::Helpers.diff([x], [y], key: :login)
     end
 
   end

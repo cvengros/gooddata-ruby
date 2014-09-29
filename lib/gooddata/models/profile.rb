@@ -49,13 +49,13 @@ module GoodData
       # @param obj [GoodData::Profile] Object to be modified
       # @param changes [Hash] Hash with modifications
       # @return [GoodData::Profile] Modified object
-      def apply(obj, changes)
-        changes.each do |param, val|
-          next unless ASSIGNABLE_MEMBERS.include? param
-          obj.send("#{param}=", val)
-        end
-        obj
-      end
+      # def apply(obj, changes)
+      #   changes.each do |param, val|
+      #     next unless ASSIGNABLE_MEMBERS.include? param
+      #     obj.send("#{param}=", val)
+      #   end
+      #   obj
+      # end
 
       # Creates new instance from hash with attributes
       #
@@ -78,58 +78,6 @@ module GoodData
       def current
         client.user
       end
-
-      # Gets hash representing diff of profiles
-      #
-      # @param user1 [GoodData::Profile] Original user
-      # @param user2 [GoodData::Profile] User to compare with
-      # @return [Hash] Hash representing diff
-      def diff(user1, user2)
-        res = {}
-        ASSIGNABLE_MEMBERS.each do |k|
-          l_value = user1.send("#{k}")
-          r_value = user2.send("#{k}")
-          res[k] = r_value if l_value != r_value
-        end
-        res
-      end
-
-      def diff_list(list1, list2)
-        tmp = Hash[list1.map { |v| [v.email, v] }]
-
-        res = {
-          :added => [],
-          :removed => [],
-          :changed => []
-        }
-
-        list2.each do |user_new|
-          user_existing = tmp[user_new.email]
-          if user_existing.nil?
-            res[:added] << user_new
-            next
-          end
-
-          if user_existing != user_new
-            diff = self.diff(user_existing, user_new)
-            res[:changed] << {
-              :user => user_existing,
-              :diff => diff
-            }
-          end
-        end
-
-        tmp = Hash[list2.map { |v| [v.email, v] }]
-        list1.each do |user_existing|
-          user_new = tmp[user_existing.email]
-          if user_new.nil?
-            res[:removed] << user_existing
-            next
-          end
-        end
-
-        res
-      end
     end
 
     # Creates new instance
@@ -145,13 +93,15 @@ module GoodData
     # @param right [GoodData::Profile] Project to compare with
     # @return [Boolean] True if same else false
     def ==(other)
-      res = true
-      ASSIGNABLE_MEMBERS.each do |k|
-        l_val = send("#{k}")
-        r_val = other.send("#{k}")
-        res = false if l_val != r_val
-      end
-      res
+      return false unless other.respond_to?(:to_hash)
+      to_hash == other.to_hash
+      # res = true
+      # ASSIGNABLE_MEMBERS.each do |k|
+      #   l_val = send("#{k}")
+      #   r_val = other.send("#{k}")
+      #   res = false if l_val != r_val
+      # end
+      # res
     end
 
     # Checks objects for non-equality
@@ -166,9 +116,9 @@ module GoodData
     #
     # @param changes [Hash] Hash with modifications
     # @return [GoodData::Profile] Modified object
-    def apply(changes)
-      GoodData::Profile.apply(self, changes)
-    end
+    # def apply(changes)
+    #   GoodData::Profile.apply(self, changes)
+    # end
 
     # Gets the company name
     #
@@ -394,7 +344,19 @@ module GoodData
     end
 
     def to_hash
-      content.merge({'uri' => uri}).symbolize_keys
+      tmp = content.merge({'uri' => uri}).symbolize_keys
+      [
+        [:companyName, :company_name],
+        [:phoneNumber, :phone_number],
+        [:firstName, :first_name],
+        [:lastName, :last_name],
+        [:authenticationModes, :authentication_modes]
+      ].each do |vals|
+        wire, rb = vals
+        tmp[rb] = tmp[wire]
+        tmp.delete(wire)
+      end
+      tmp
     end
   end
 end

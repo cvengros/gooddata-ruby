@@ -89,7 +89,7 @@ module GoodData
     #
     # @return [String]
     def pretty_expression
-      SmallGoodZilla.pretty_print(expression, client: client)
+      SmallGoodZilla.pretty_print(expression, client: client, project: project)
     end
 
     # Returns hash representation of the filter

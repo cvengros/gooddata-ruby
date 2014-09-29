@@ -212,10 +212,15 @@ module GoodData
       errors = []
       results = filters.mapcat do |filter|
         login = filter[:login]
-        expressions = filter[:filters].map do |filter|
+        expressions = filter[:filters].mapcat do |filter|
           expression, error = create_expression(filter, labels_cache, lookups_cache)
           errors << error unless error.empty?
-          create_user_filter(expression, (users_cache[login] && users_cache[login].uri))
+          profiles_uri = (users_cache[login] && users_cache[login].uri)
+          if profiles_uri
+            [create_user_filter(expression, profiles_uri)]
+          else
+            []
+          end
         end
       end
       [results, errors]
@@ -367,7 +372,7 @@ module GoodData
       users = domain ? project.users + domain.users : project.users
       users_cache = create_cache(users , :login)
       verify_existing_users(filters, options.merge(users_must_exist: users_must_exist, users_cache: users_cache))
-      user_filters, errors = maqlify_filters(filters, options.merge({ :users_cache => users_cache }))
+      user_filters, errors = maqlify_filters(filters, options.merge({ users_cache: users_cache, users_must_exist: users_must_exist }))
       fail "Validation failed" if !ignore_missing_values && !errors.empty? 
 
       filters = user_filters.map { |data| client.create(klass, data, project: project) }

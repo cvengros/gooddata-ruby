@@ -170,15 +170,15 @@ module GoodData
       # @param domain [String] Domain name
       # @param login [String] User login
       # @return [GoodData::Profile] User profile
-      def find_user_by_login(domain, login, opts = {})
-        c = client(opts)
-        escaped_login = CGI.escape(login)
-        domain = c.domain(domain)
-        url = "/gdc/account/domains/#{domain.name}/users?login=#{escaped_login}"
-        tmp = c.get url
-        items = tmp['accountSettings']['items'] if tmp['accountSettings']
-        items && items.length > 0 ? c.factory.create(GoodData::Profile, items.first) : nil
-      end
+      # def find_user_by_login(domain, login, opts = {})
+      #   c = client(opts)
+      #   escaped_login = CGI.escape(login)
+      #   domain = c.domain(domain)
+      #   url = "/gdc/account/domains/#{domain.name}/users?login=#{escaped_login}"
+      #   tmp = c.get url
+      #   items = tmp['accountSettings']['items'] if tmp['accountSettings']
+      #   items && items.length > 0 ? c.factory.create(GoodData::Profile, items.first) : nil
+      # end
 
       # Returns list of users for domain specified
       # @param [String] domain Domain to list the users for
@@ -247,6 +247,7 @@ module GoodData
               # fields = [:firstName, :email]
               diff = GoodData::Helpers.diff([domain_user.to_hash], [user_data], key: :login)
               next if[:changed].empty?
+              
               domain_user = domain[:domain].update_user(domain_user.to_hash.merge(user_data.compact), opts)
               domain[:users_map][domain_user.login] = domain_user            
               { type: :user_changed_in_domain, user: domain_user }
@@ -285,13 +286,32 @@ module GoodData
       GoodData::Domain.create_users(list, name, { client: client }.merge(options))
     end
 
-    # Finds user in domain by login
+    # Gets user by its login or uri in various shapes
+    # It does not find by other information because that is not unique. If you want to search by name or email please
+    # use fuzzy_get_user.
     #
-    # @param login [String] User login
-    # @return [GoodData::Profile] User account settings
-    def find_user_by_login(login)
-      GoodData::Domain.find_user_by_login(self, login, client: client)
+    # @param [String] name Name to look for
+    # @param [Array<GoodData::User>]user_list Optional cached list of users used for look-ups
+    # @return [GoodDta::Membership] User
+    def get_user(name, user_list = users)
+      return member(name) if name.instance_of?(GoodData::Membership)
+      return member(name) if name.instance_of?(GoodData::Profile)
+      name = name.is_a?(Hash) ? name[:login] || name[:uri] : name
+      return nil unless name
+      name.downcase!
+      user_list.find do |user|
+        user.uri.downcase == name ||
+        user.login.downcase == name
+      end
     end
+
+    # # Finds user in domain by login
+    # #
+    # # @param login [String] User login
+    # # @return [GoodData::Profile] User account settings
+    # def find_user_by_login(login)
+    #   GoodData::Domain.find_user_by_login(self, login, client: client)
+    # end
 
     # Gets membership for profile specified
     #

@@ -28,67 +28,32 @@ module GoodData
       # @param obj [GoodData::User] Object to be modified
       # @param changes [Hash] Hash with modifications
       # @return [GoodData::User] Modified object
-      def apply(obj, changes)
-        changes.each do |param, val|
-          next unless ASSIGNABLE_MEMBERS.include? param
-          obj.send("#{param}=", val)
-        end
-        obj
-      end
-
-      # Gets hash representing diff of users
-      #
-      # @param user1 [GoodData::User] Original user
-      # @param user2 [GoodData::User] User to compare with
-      # @return [Hash] Hash representing diff
-      def diff(user1, user2)
-        res = {}
-        ASSIGNABLE_MEMBERS.each do |k|
-          l_value = user1.send("#{k}")
-          r_value = user2.send("#{k}")
-          res[k] = r_value if l_value != r_value
-        end
-        res
-      end
-
-      def diff_list(list1, list2)
-        tmp = Hash[list1.map { |v| [v.login, v] }]
-
-        res = {
-          :added => [],
-          :removed => [],
-          :changed => [],
-          :same => []
+      # def apply(obj, changes)
+      #   changes.each do |param, val|
+      #     next unless ASSIGNABLE_MEMBERS.include? param
+      #     obj.send("#{param}=", val)
+      #   end
+      #   obj
+      # end
+      def create(data, options = { client: GoodData.connection })
+        c = client(options)
+        json = {
+          'user' => {
+            'content' => {
+              'email' => data[:email] || data[:login],
+              'login' => data[:login],
+              'firstname' => data[:first_name],
+              'lastname' => data[:last_name],
+              'userRoles' => ['editor'],
+              'password' => data[:password],
+              'domain' => data[:domain],
+              # And following lines are even much more ugly hack
+              # 'authentication_modes' => ['sso', 'password']
+            },
+            'meta' => {}
+          }
         }
-
-        list2.each do |user_new|
-          user_existing = tmp[user_new.login]
-          if user_existing.nil?
-            res[:added] << user_new
-            next
-          end
-
-          if user_existing != user_new
-            diff = self.diff(user_existing, user_new)
-            res[:changed] << {
-              :user => user_existing,
-              :diff => diff
-            }
-          else
-            res[:same] << user_existing
-          end
-        end
-
-        tmp = Hash[list2.map { |v| [v.login, v] }]
-        list1.each do |user_existing|
-          user_new = tmp[user_existing.login]
-          if user_new.nil?
-            res[:removed] << user_existing
-            next
-          end
-        end
-
-        res
+        c.create(self, json)
       end
     end
 
@@ -101,13 +66,15 @@ module GoodData
     # @param right [GoodData::User] Project to compare with
     # @return [Boolean] True if same else false
     def ==(other)
-      res = true
-      ASSIGNABLE_MEMBERS.each do |k|
-        l_val = send("#{k}")
-        r_val = other.send("#{k}")
-        res = false if l_val != r_val
-      end
-      res
+      return false unless other.respond_to?(:to_hash)
+      to_hash == other.to_hash      
+      # res = true
+      # ASSIGNABLE_MEMBERS.each do |k|
+      #   l_val = send("#{k}")
+      #   r_val = other.send("#{k}")
+      #   res = false if l_val != r_val
+      # end
+      # res
     end
 
     # Checks objects for non-equality
@@ -122,9 +89,9 @@ module GoodData
     #
     # @param changes [Hash] Hash with modifications
     # @return [GoodData::User] Modified object
-    def apply(changes)
-      GoodData::User.apply(self, changes)
-    end
+    # def apply(changes)
+    #   GoodData::User.apply(self, changes)
+    # end
 
     # Gets author (person who created)  of this object
     #
@@ -418,7 +385,20 @@ module GoodData
     end
 
     def to_hash
-      content.merge(meta).merge({'uri' => uri}).symbolize_keys
+      tmp = content.merge(meta).merge({'uri' => uri}).symbolize_keys
+        [
+          [:userRoles, :role],
+          [:companyName, :company_name],
+          [:phoneNumber, :phone_number],
+          [:firstname, :first_name],
+          [:lastname, :last_name],
+          [:authenticationModes, :authentication_modes]
+        ].each do |vals|
+          wire, rb = vals
+          tmp[rb] = tmp[wire]
+          tmp.delete(wire)
+        end
+      tmp
     end
 
     private

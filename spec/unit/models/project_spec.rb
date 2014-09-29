@@ -106,23 +106,23 @@ describe GoodData::Project do
 
   describe "#member" do
     it 'Returns GoodData::Membership when looking for existing user using email' do
-      res = @project.member('svarovsky+gem_tester@gooddata.com')
+      res = @project.get_user('svarovsky+gem_tester@gooddata.com')
       expect(res).to be_instance_of(GoodData::Membership)
     end
 
     it 'Returns GoodData::Membership when looking for existing user using URL' do
-      res = @project.member(ConnectionHelper::DEFAULT_USER_URL)
+      res = @project.get_user(ConnectionHelper::DEFAULT_USER_URL)
       expect(res).to be_instance_of(GoodData::Membership)
     end
 
     it 'Returns GoodData::Membership when looking for existing user using GoodData::Profile' do
       user = @project.members.first
-      res = @project.member(user)
+      res = @project.get_user(user)
       expect(res).to be_instance_of(GoodData::Membership)
     end
 
     it 'Returns null for non-existing user' do
-      res = @project.member('john.doe@gooddata.com')
+      res = @project.get_user('john.doe@gooddata.com')
       res.should be_nil
     end
   end
@@ -242,14 +242,14 @@ describe GoodData::Project do
 
   describe '#add_user' do
     it 'Adding user without domain should fail if it is not in the project' do
-      user = ProjectHelper.create_random_user
+      user = ProjectHelper.create_random_user(@client)
       expect do
         @project.add_user(user, 'Admin')
       end.to raise_exception(ArgumentError)
     end
 
     it 'Adding user with domain should be added to a project' do
-      user = ProjectHelper.create_random_user
+      user = ProjectHelper.create_random_user(@client)
       @domain.create_users([user])
       res = @project.add_user(user, 'Admin', domain: @domain)
       expect(@project.member?(res['projectUsersUpdateResult']['successful'].first)).to be_true
@@ -260,7 +260,7 @@ describe GoodData::Project do
     it 'Adding user without domain should fail if it is not in the project' do
       users = (1..5).to_a.map do |x|
         {
-          user: ProjectHelper.create_random_user,
+          user: ProjectHelper.create_random_user(@client),
           role: 'Admin'
         }
       end
@@ -272,7 +272,7 @@ describe GoodData::Project do
     it 'Adding users with domain should pass and users should be added to domain' do
       users = (1..5).to_a.map do |x|
         {
-          user: ProjectHelper.create_random_user,
+          user: ProjectHelper.create_random_user(@client),
           role: 'Admin'
         }
       end
@@ -284,62 +284,74 @@ describe GoodData::Project do
     end
   end
 
-  describe '#users_import' do
-    it 'Import users from CSV' do
-      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user }
-      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+  describe '#import_users' do
+    it "Updates user's name and surname and removes the users" do
+      users = (1..2).to_a.map { |x| ProjectHelper.create_random_user(@client) }
+      @project.import_users(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
       expect(@domain.members?(users)).to be_true
       expect(@project.members?(users)).to be_true
-    end
-
-    it "Updates user's name and surname from CSV" do
-      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user }
-      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
-      expect(@domain.members?(users)).to be_true
+      expect(@project.members.count).to eq 3
 
       # update some user stuff
-      login_name_changed = users[0].login
-      users[0].first_name = 'buffalo'
-      users[0].last_name = 'bill'
-
+      bill = users[0]
+      bill.first_name = 'buffalo'
+      bill.last_name = 'bill'
       # import
-      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      @project.import_users(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
       # it should be updated
-      user_name_changed = @domain.find_user_by_login(login_name_changed)
-      expect(user_name_changed.first_name).to eql('buffalo')
-      expect(user_name_changed.last_name).to eql('bill')
+      bill_changed = @domain.get_user(bill)
+      expect(bill_changed.first_name).to eql('buffalo')
+      expect(bill_changed.last_name).to eql('bill')
+      expect(@project.members.count).to eq 3
+      expect(@project.member?(user_name_changed)).to be_true
+
+      # remove everybody but buffalo bill.
+      @project.import_users([bill], domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      expect(@project.members.count).to eq 2
+      expect(@project.member?(bill)).to be_true
+      expect(@project.members?(users - [bill]).any?).to be_false
+
+      # Add additional user while changing Buffalos surname and role.
+      bill.last_name = 'Billie'
+      other_guy = ProjectHelper.create_random_user(@client)
+
+      additional_batch = [bill, other_guy].map { |u| user: u, role: u[:role] }
+      @project.import_users(additional_batch, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      expect(@project.members.count).to eq 3
+      expect(@project.member?(bill)).to be_true
+      expect(@project.members?(users - additional_batch]).any?).to be_false
     end
 
     it "Updates user's role in a project" do
-      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user }
-      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user(@client).to_hash }
+      @project.import_users(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
 
       expect(@project.members?(users)).to be_true
-
-      login_role_changed = users[1].login
-      new_role = users[1].data['content']['role'] = users[1].data['content']['role'] == "admin" ? "editor" : "admin"
-      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
-      user_role_changed = @project.users.select{|u| u.login == login_role_changed}[0]
-      expect(user_role_changed.role.json['projectRole']['meta']['identifier']).to eql("#{new_role}Role")
+      user_role_changed = users[1]
+      users_unchanged = users - [user_role_changed]
+      new_role = users[1][:role] = users[1][:role] == "admin" ? "editor" : "admin"
+      @project.import_users(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      expect(@project.get_user(user_role_changed).role.identifier).to eql("#{new_role}Role")
+      expect(users_unchanged.map {|u| @project.get_user(u)}.map(&:role).map(&:title).uniq).to eq ['Editor']
     end
   end
 
   describe '#set_user_roles' do
     it 'Properly updates user roles as needed' do
-      users = @project.users
-
-      # From all users remove deleted users and our testing user so we do not ban ourselves from the project
-      users_without_owner =
-        @project.users
-        .reject { |u| u.login == ConnectionHelper::DEFAULT_USERNAME }
-        .reject { |u| u.login =~ /^deleted/ }
-        .pselect { |u| u.role.title == 'Admin' }
+      users_to_import = @domain.users.sample(5).map {|u| { user: u, role: 'admin' }}
+      @project.import_users(users_to_import, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      users_without_owner = @project.users.reject { |u| u.login == ConnectionHelper::DEFAULT_USERNAME }.pselect { |u| u.role.title == 'Admin' }
 
       user_to_change = users_without_owner.sample
-
       @project.set_user_roles(user_to_change, 'editor')
       expect(user_to_change.role.title).to eq 'Editor'
       @project.set_user_roles(user_to_change, 'admin')
+      expect(user_to_change.role.title).to eq 'Admin'
+
+      # Try different notation
+      @project.set_users_roles([user: user_to_change, role: 'editor'])
+      expect(user_to_change.role.title).to eq 'Editor'
+      @project.set_users_roles([user: user_to_change, role: 'admin'])
       expect(user_to_change.role.title).to eq 'Admin'
     end
 

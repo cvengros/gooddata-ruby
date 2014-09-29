@@ -54,7 +54,7 @@ describe GoodData::Domain do
 
   describe '#create_users' do
     it 'Creates new users from list' do
-      list = (0...10).to_a.map { |i| ProjectHelper.create_random_user }
+      list = (0...10).to_a.map { |i| ProjectHelper.create_random_user(@client) }
       res = @domain.create_users(list)
 
       # no errors
@@ -74,17 +74,17 @@ describe GoodData::Domain do
 
       user.first_name = name.reverse
       @domain.create_users([user])
-      changed_user = @domain.member(login)
+      changed_user = @domain.get_user(login)
       expect(changed_user.first_name).to eq name.reverse
 
       user.first_name = name
       @domain.create_users([user])
-      reverted_user = @domain.member(login)
+      reverted_user = @domain.get_user(login)
       expect(reverted_user.first_name).to eq name
     end
 
     it 'Fails with an exception if you try to create a user that is in a different domain' do
-      user = ProjectHelper.create_random_user
+      user = ProjectHelper.create_random_user(@client)
       user.login = 'svarovsky@gooddata.com'
       expect do
         @domain.create_user(user)
@@ -98,10 +98,10 @@ describe GoodData::Domain do
       old_email = user.email
       user.email = 'john.doe@gooddata.com'
       @domain.update_user(user)
-      expect(@domain.member(user.login).email).to eq 'john.doe@gooddata.com'
+      expect(@domain.get_user(user.login).email).to eq 'john.doe@gooddata.com'
       user.email = old_email
       @domain.update_user(user)
-      expect(@domain.member(user.login).email).to eq old_email
+      expect(@domain.get_user(user.login).email).to eq old_email
     end
   end
 end
