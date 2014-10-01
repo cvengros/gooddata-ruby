@@ -915,21 +915,21 @@ module GoodData
         begin
           # TODO: Add user here
           domain_name = user.json['user']['content']['domain']
-    
+
           # Lookup for domain in cache'
           domain = domains[domain_name]
-    
+
           # Get domain info from REST, add to cache
           if domain.nil?
             domain = {
               :domain => client.domain(domain_name),
               :users => client.domain(domain_name).users
             }
-    
+
             domain[:users_map] = Hash[domain[:users].map { |u| [u.login, u] }]
             domains[domain_name] = domain
           end
-    
+
         # # Get domain info from REST, add to cache
         # if domain.nil?
         #   d = GoodData::Domain[domain_name, { :client => client }]
@@ -937,16 +937,16 @@ module GoodData
         #     :domain => d,
         #     :users => d.users(:client => client)
         #   }
-    
+
           # Check if user exists in domain
           domain_user = domain[:users_map][user.login]
           fail ArgumentError, "Trying to add user '#{user.login}' which is not valid user in domain '#{domain_name}'" if domain_user.nil?
-    
+
           # Lookup for role
           role_name = user.json['user']['content']['role'] || 'readOnlyUser'
           role = get_role(role_name, role_list)
           fail ArgumentError, "Invalid role name specified '#{role_name}' for user '#{user.email}'" if role.nil?
-    
+
           # Assign user project role
           set_user_roles(domain_user, [role.uri], roles: role_list)
           { type: :user_added_to_project, user: domain_user }
@@ -981,6 +981,12 @@ module GoodData
       results = []
       # Create domain users
       results.concat domain.create_users(diff[:added])
+
+      # Update domain users
+      diff[:changed].map do |u|
+        domain.update_user(u)
+      end
+
       # Create new users
       role_list = roles
       results.concat create_users(diff[:added], role_list)
@@ -989,6 +995,7 @@ module GoodData
       list = diff[:changed].map do |user|
         user[:user]
       end
+
 
       # Join list of changed users with 'same' users
       list = list.concat(diff[:same]).compact

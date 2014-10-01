@@ -291,6 +291,37 @@ describe GoodData::Project do
       expect(@domain.members?(users)).to be_true
       expect(@project.members?(users)).to be_true
     end
+
+    it "Updates user's name and surname from CSV" do
+      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user }
+      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      expect(@domain.members?(users)).to be_true
+
+      # update some user stuff
+      login_name_changed = users[0].login
+      users[0].first_name = 'buffalo'
+      users[0].last_name = 'bill'
+
+      # import
+      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      # it should be updated
+      user_name_changed = @domain.find_user_by_login(login_name_changed)
+      expect(user_name_changed.first_name).to eql('buffalo')
+      expect(user_name_changed.last_name).to eql('bill')
+    end
+
+    it "Updates user's role in a project" do
+      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user }
+      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+
+      expect(@project.members?(users)).to be_true
+
+      login_role_changed = users[1].login
+      new_role = users[1].data['content']['role'] = users[1].data['content']['role'] == "admin" ? "editor" : "admin"
+      @project.users_import(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      user_role_changed = @project.users.select{|u| u.login == login_role_changed}[0]
+      expect(user_role_changed.role.json['projectRole']['meta']['identifier']).to eql("#{new_role}Role")
+    end
   end
 
   describe '#set_user_roles' do
@@ -298,7 +329,7 @@ describe GoodData::Project do
       users = @project.users
 
       # From all users remove deleted users and our testing user so we do not ban ourselves from the project
-      users_without_owner = 
+      users_without_owner =
         @project.users
         .reject { |u| u.login == ConnectionHelper::DEFAULT_USERNAME }
         .reject { |u| u.login =~ /^deleted/ }

@@ -36,8 +36,8 @@ module GoodData
         user_data = user_data.to_hash
         data = {
           :login => user_data[:login],
-          :firstName => user_data[:first_name] || 'FirstName',
-          :lastName => user_data[:last_name] || 'LastName',
+          :firstName => user_data[:firstname] || 'FirstName',
+          :lastName => user_data[:lastname] || 'LastName',
           :password => user_data[:password] || generated_pass,
           :verifyPassword => user_data[:password] || generated_pass,
           :email => user_data[:login]
@@ -104,8 +104,8 @@ module GoodData
         user_data = user_data.to_hash
         # generated_pass = rand(10E10).to_s
         data = {
-          :firstName => user_data[:firstName] || 'FirstName',
-          :lastName => user_data[:lastName] || 'LastName',
+          :firstName => user_data[:first_name] || 'FirstName',
+          :lastName => user_data[:last_name] || 'LastName',
           :email => user_data[:email]
         }
 

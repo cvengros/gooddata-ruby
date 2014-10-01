@@ -28,6 +28,7 @@ module GoodData
         GoodData.logger = logger
         GoodData.with_project(project_id, :client => client) do |p|
           params['gdc_project'] = p
+          params['gdc_client'] = client
           @app.call(params)
         end
       end
