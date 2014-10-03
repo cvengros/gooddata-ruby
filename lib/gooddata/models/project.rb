@@ -862,9 +862,41 @@ module GoodData
       results
     end
 
+    def import_users_csv(file_path, options={})
+      domain = options[:domain] || client.domain(options[:domain_name])
+
+      first_name_column = options[:first_name_column] || 'first_name'
+      last_name_column = options[:last_name_column] || 'last_name'
+      login_column = options[:login_column] || 'login'
+      password_column = options[:password_column] || 'password'
+      email_column = options[:email_column] || 'email'
+      role_column = options[:role_column] || 'role'
+      sso_provider_column = options[:sso_provider_column] || 'sso_provider'
+
+      sso_provider = options[:sso_provider]
+
+      new_users = []
+
+      CSV.foreach(File.open(file_path, 'r:UTF-8'), :headers => true, :return_headers => false, encoding:'utf-8') do |row|
+
+        new_users << {
+          :firstname => row[first_name_column],
+          :lastname => row[last_name_column],
+          :login => row[login_column],
+          :password => row[password_column],
+          :email => row[email_column] || row[login_column],
+          :role => row[role_column],
+          :sso_provider => sso_provider || row[sso_provider_column]
+        }
+      end
+
+      # add users to domain and project
+      import_users(new_users, :domain => domain, :whitelists => options[:whitelists])
+    end
+
     def disable_users(list, options = {})
       project_users = options[:project_users] || users
-      list.map { |u| get_user(u, project_users) }.pmap { |u| u.disable }
+      list.map { |u| get_user(u, project_users) }.pmap { |u| u.disable }.map{|res| {type: :disabled, result: res.json}}
     end
 
     # Update user

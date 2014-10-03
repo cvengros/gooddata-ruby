@@ -285,6 +285,12 @@ describe GoodData::Project do
   end
 
   describe '#import_users' do
+    it 'Imports users' do
+      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user(@client) }
+      @project.import_users(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      expect(@domain.members?(users)).to be_true
+      expect(@project.members?(users)).to be_true
+    end
     it "Updates user's name and surname and removes the users" do
       users = (1..2).to_a.map { |x| ProjectHelper.create_random_user(@client) }
       @project.import_users(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
@@ -349,6 +355,65 @@ describe GoodData::Project do
       expect(@project.get_user(ConnectionHelper::DEFAULT_USERNAME).role.title).to eq 'Admin'
     end
 
+  end
+
+  describe "#import_users_csv" do
+    it "adds users from csv" do
+      csv = File.join(File.dirname(__FILE__), 'user1.csv')
+      result = @project.import_users_csv(csv,{
+        :domain_name => @domain.name,
+        :whitelists => [/.*@gooddata.com/]
+      })
+      # no errors please
+      result.select{|r| r[:type] == :error}.should be_empty
+      csv_logins = ["pcvpcvpcv+test3@gmail.com", "pcvpcvpcv+test2@gmail.com", "pcvpcvpcv+test1@gmail.com"]
+      csv_white = 'cvengros@gooddata.com'
+      # users should be in domain and project, with the role
+      domain_users = @domain.users
+      domain_logins = domain_users.map{|u| u.login}
+      domain_logins.should include(*csv_logins)
+      domain_logins.should_not include(csv_white)
+      domain_users.map{|u| u.last_name}.should include("something else", "test 2", "test 11")
+
+      project_logins = @project.users.map{|u| u.login}
+      project_logins.should include(*csv_logins)
+      project_logins.should_not include(csv_white)
+      @project.get_user("pcvpcvpcv+test3@gmail.com").role.title.should eq('Admin')
+    end
+    it "updates and deletes users from csv" do
+      GoodData.logging_on
+      options = {
+        :domain_name => @domain.name,
+        :whitelists => [/.*@gooddata.com/]
+      }
+      csv = File.join(File.dirname(__FILE__), 'user1.csv')
+      result = @project.import_users_csv(csv, options)
+      # no errors please
+      result.select{|r| r[:type] == :error}.should be_empty
+
+      # import the updated csv
+      csv2 = File.join(File.dirname(__FILE__), 'user1-updated.csv')
+      result2 = @project.import_users_csv(csv2, options)
+
+      result2.select{|r| r[:type] == :error}.should be_empty
+
+      csv_logins = ["pcvpcvpcv+test3@gmail.com", "pcvpcvpcv+test1@gmail.com"]
+      csv_white = 'cvengros@gooddata.com'
+      csv_removed = 'pcvpcvpcv+test2@gmail.com'
+
+      domain_users = @domain.users
+      domain_logins = domain_users.map{|u| u.login}
+      # the removed user is still in domain
+      domain_logins.should include(*(csv_logins + [csv_removed]))
+      domain_logins.should_not include(csv_white)
+      domain_users.map{|u| u.last_name}.should include("something else edited", "test 11")
+
+      project_logins = @project.users.map{|u| u.login}
+      project_logins.should include(*csv_logins)
+      project_logins.should_not include(csv_white,csv_removed)
+      @project.get_user("pcvpcvpcv+test3@gmail.com").role.title.should eq('Editor')
+
+    end
   end
 
   describe '#set_user_roles' do
