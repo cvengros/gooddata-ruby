@@ -8,6 +8,9 @@ module GoodData
     class << self
 
       def diff(old_list, new_list, options = {})
+        old_list = old_list.map(&:to_hash)
+        new_list = new_list.map(&:to_hash)
+
         fields = options[:fields]
         lookup_key = options[:key]
 
@@ -38,7 +41,7 @@ module GoodData
             difference = sliced_new_obj.to_a - sliced_old_obj.to_a
             differences = Hash[*difference.mapcat {|x| x}]
             res[:changed] << {
-              obj_old: old_obj,
+              old_obj: old_obj,
               new_obj: new_obj,
               diff: differences
             }
@@ -93,6 +96,15 @@ module GoodData
           break unless root == pwd
         end
         nil
+      end
+
+      def get_path(hs, *slugs)
+        tmp = hs
+        slugs.each do |sl|
+          tmp = tmp[sl]
+          return tmp unless tmp
+        end
+        tmp
       end
 
       def home_directory

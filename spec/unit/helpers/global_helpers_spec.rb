@@ -27,12 +27,12 @@ describe GoodData::Helpers do
       expect(diff[:removed]).to eq [@patrick]
       expect(diff[:changed]).to eq([
         {
-          obj_old: @old_tomas,
+          old_obj: @old_tomas,
           new_obj: @new_tomas, 
           diff: { name: "Lil'Tomas"}
         },
         {
-          obj_old: @old_korczis,
+          old_obj: @old_korczis,
           new_obj: @new_korczis,
           diff: { age: 22 }
         }
@@ -47,7 +47,7 @@ describe GoodData::Helpers do
       expect(diff[:removed]).to eq [@patrick]
       expect(diff[:changed]).to eq([
         {
-          obj_old: @old_korczis,
+          old_obj: @old_korczis,
           new_obj: @new_korczis,
           diff: { age: 22 }
         }

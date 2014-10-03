@@ -23,8 +23,8 @@ module ProjectHelper
     GoodData::Membership.create({
       email: login,
       login: login,
-      firstname: 'the',
-      lastname: num.to_s,
+      first_name: 'the',
+      last_name: num.to_s,
       role: 'editor',
       password: CryptoHelper.generate_password,
       domain: ConnectionHelper::DEFAULT_DOMAIN

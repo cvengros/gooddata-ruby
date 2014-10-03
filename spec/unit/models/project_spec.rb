@@ -249,6 +249,7 @@ describe GoodData::Project do
     end
 
     it 'Adding user with domain should be added to a project' do
+      
       user = ProjectHelper.create_random_user(@client)
       @domain.create_users([user])
       res = @project.add_user(user, 'Admin', domain: @domain)
@@ -264,9 +265,8 @@ describe GoodData::Project do
           role: 'Admin'
         }
       end
-      expect do
-        @project.add_users(users)
-      end.to raise_exception(ArgumentError)
+      res = @project.add_users(users)
+      expect(res.all? { |x| x[:type] == :error }).to eq true
     end
 
     it 'Adding users with domain should pass and users should be added to domain' do
@@ -303,7 +303,7 @@ describe GoodData::Project do
       expect(bill_changed.first_name).to eql('buffalo')
       expect(bill_changed.last_name).to eql('bill')
       expect(@project.members.count).to eq 3
-      expect(@project.member?(user_name_changed)).to be_true
+      expect(@project.member?(bill_changed)).to be_true
 
       # remove everybody but buffalo bill.
       @project.import_users([bill], domain: @domain, whitelists: [/gem_tester@gooddata.com/])
@@ -315,11 +315,11 @@ describe GoodData::Project do
       bill.last_name = 'Billie'
       other_guy = ProjectHelper.create_random_user(@client)
 
-      additional_batch = [bill, other_guy].map { |u| user: u, role: u[:role] }
+      additional_batch = [bill, other_guy].map { |u| {user: u, role: u.role} }
       @project.import_users(additional_batch, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
       expect(@project.members.count).to eq 3
       expect(@project.member?(bill)).to be_true
-      expect(@project.members?(users - additional_batch]).any?).to be_false
+      expect(@project.members?(users - additional_batch.map {|x| x[:user]}).any?).to be_false
     end
 
     it "Updates user's role in a project" do
@@ -334,6 +334,21 @@ describe GoodData::Project do
       expect(@project.get_user(user_role_changed).role.identifier).to eql("#{new_role}Role")
       expect(users_unchanged.map {|u| @project.get_user(u)}.map(&:role).map(&:title).uniq).to eq ['Editor']
     end
+
+    it "ignores user from both project and end state batch when whitelisted" do
+      u = @project.get_user(ConnectionHelper::DEFAULT_USERNAME)
+      uh = u.to_hash
+      uh[:role] = 'editor'
+
+      users = (1..5).to_a.map { |x| ProjectHelper.create_random_user(@client).to_hash } + [uh]
+      expect(@project.member?(u)).to be_true
+      expect(u.role.title).to eq 'Admin'
+      @project.import_users(users, domain: @domain, whitelists: [/gem_tester@gooddata.com/])
+      expect(@project.member?(u)).to be_true
+      expect(@project.members?(users).all?).to be_true
+      expect(@project.get_user(ConnectionHelper::DEFAULT_USERNAME).role.title).to eq 'Admin'
+    end
+
   end
 
   describe '#set_user_roles' do

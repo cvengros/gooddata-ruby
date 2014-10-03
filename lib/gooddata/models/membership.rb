@@ -55,6 +55,10 @@ module GoodData
         }
         c.create(self, json)
       end
+
+      def diff_list(list_1, list_2)
+        GoodData::Helpers.diff(list_1, list_2, key: :login)
+      end
     end
 
     def initialize(json)
@@ -281,17 +285,20 @@ module GoodData
     #
     # @return [GoodData::ProjectRole] Array of project roles
     def role
-      roles.first
+      roles && roles.first
     end
 
     # Gets the project roles of user
     #
     # @return [Array<GoodData::ProjectRole>] Array of project roles
     def roles
-      tmp = client.get @json['user']['links']['roles']
-      tmp['associatedRoles']['roles'].pmap do |role_uri|
-        role = client.get role_uri
-        client.factory.create(GoodData::ProjectRole, role)
+      roles_link = GoodData::Helpers.get_path(@json, 'user', 'links', 'roles')
+      if roles_link
+        tmp = client.get roles_link
+        tmp['associatedRoles']['roles'].pmap do |role_uri|
+          role = client.get role_uri
+          client.factory.create(GoodData::ProjectRole, role)
+        end
       end
     end
 

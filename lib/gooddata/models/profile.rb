@@ -73,6 +73,16 @@ module GoodData
         res
       end
 
+      def diff(item_1, item_2)
+        x = diff_list([item_1], [item_2])
+        return {} if x[:changed].empty?
+        x[:changed].first[:diff]
+      end
+
+      def diff_list(list_1, list_2)
+        GoodData::Helpers.diff(list_1, list_2, key: :login)
+      end
+
       # Gets user currently logged in
       # @return [GoodData::Profile] User currently logged-in
       def current
@@ -319,7 +329,8 @@ module GoodData
     #
     # @return [String] Resource URI
     def uri
-      @json['accountSetting']['links']['self']
+      GoodData::Helpers.get_path(@json, 'accountSetting', 'links', 'self')
+      # @json['accountSetting']['links']['self']
     end
 
     # private
@@ -344,7 +355,7 @@ module GoodData
     end
 
     def to_hash
-      tmp = content.merge({'uri' => uri}).symbolize_keys
+      tmp = content.merge({:uri => uri}).symbolize_keys
       [
         [:companyName, :company_name],
         [:phoneNumber, :phone_number],

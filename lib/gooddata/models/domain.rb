@@ -253,7 +253,7 @@ module GoodData
               { type: :user_changed_in_domain, user: domain_user }
             end
           rescue RuntimeError => e
-            { type: :errors, reason: e}
+            { type: :error, reason: e}
           end
         end
       end
@@ -300,8 +300,8 @@ module GoodData
       return nil unless name
       name.downcase!
       user_list.find do |user|
-        user.uri.downcase == name ||
-        user.login.downcase == name
+        user.uri && user.uri.downcase == name ||
+        user.login && user.login.downcase == name
       end
     end
 

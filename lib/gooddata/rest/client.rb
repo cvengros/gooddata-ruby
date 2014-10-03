@@ -82,7 +82,7 @@ module GoodData
 
           if client
             at_exit do
-              # puts client.connection.stats_table if client && client.connection
+              puts client.connection.stats_table if client && client.connection
             end
           end
 

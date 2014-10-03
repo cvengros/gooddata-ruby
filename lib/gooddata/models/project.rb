@@ -835,7 +835,6 @@ module GoodData
       new_users_map = Hash[whitelisted_new_users.map { |u| [u[:login], u] }]
 
       # Diff users
-      # diff = GoodData::Membership.diff_list(whitelisted_new_users, whitelisted_users)
       diff = GoodData::Helpers.diff(whitelisted_users, whitelisted_new_users, key: :login)
       results = []
       # Create domain users
@@ -854,23 +853,6 @@ module GoodData
       end
       results.concat create_users(u, roles: role_list, domain: domain)
 
-      # # Get changed users objects from hash
-      # list = diff[:changed].map do |user|
-      #   user[:user]
-      # end
-      # 
-      # 
-      # # Join list of changed users with 'same' users
-      # list = list.concat(diff[:same]).compact
-      # 
-      # # Create list with user, desired_roles hashes
-      # list = list.map do |user|
-      #   {
-      #     :user => user,
-      #     :roles => new_users_map[user.login].json['user']['content']['role'].split(' ').map { |r| r.downcase }.sort
-      #   }
-      # end
-      # 
       # # Update existing users
       list = diff[:changed].map {|x| {user: x[:new_obj], role: x[:new_obj][:role] || x[:new_obj][:roles]}}
       results.concat set_users_roles(list, roles: role_list)
@@ -894,7 +876,7 @@ module GoodData
       role_list = options[:roles] || roles()
       domain = client.domain(options[:domain]) if options[:domain]
       project_users = options[:project_users] || users()
-      domain_users = domain && domain.users
+      domain_users = options[:domain_users] || (domain && domain.users)
 
       project_user = get_user(login, project_users)
       domain_user = domain.get_user(login, domain_users) if domain && !project_user
@@ -931,8 +913,8 @@ module GoodData
     # @param list List of users to be updated
     # @param role_list Optional list of cached roles to prevent unnecessary server round-trips
     def set_users_roles(list, options = {})
-      role_list = options[:roles] || roles
-      project_users = options[:project_users] || users
+      role_list = options[:roles] || roles()
+      project_users = options[:project_users] || users()
       domain = options[:domain] && client.domain(options[:domain])
       domain_users = domain.nil? ? nil : domain.users
 
@@ -952,8 +934,8 @@ module GoodData
             user: user,
             result: result
           }
-        rescue RuntimeError => e
-          { type: :errors, reason: e}
+        rescue ArgumentError, RuntimeError => e
+          { type: :error, reason: e}
         end
       end
     end
