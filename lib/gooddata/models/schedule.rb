@@ -76,39 +76,44 @@ module GoodData
           :type => 'MSETL',
           :timezone => 'UTC',
           :cron => cron,
-          :params => {
-            :process_id => process_id,
-            :executable => executable
-          },
+          :params => {},
           :hidden_params => {},
           :reschedule => options[:reschedule] || 0
         }
 
-        inject_schema = {
-          :hidden_params => 'hiddenParams'
-        }
+        # merge the user given params to opts
+        opts = default_opts.merge(options.except(:project, :client))
 
+        # merge the defaults to params
+        opts[:params] = {
+          :process_id => process_id,
+          :executable => executable
+        }.merge(opts[:params])
+
+        # inject there params that are always needed
         inject_params = {
           :process_id => 'PROCESS_ID',
           :executable => 'EXECUTABLE'
         }
-
-        default_params = default_opts[:params].reduce({}) do |new_hash, (k, v)|
+        params_with_defaults = opts[:params].reduce({}) do |new_hash, (k, v)|
           key = inject_params[k] || k
           new_hash[key] = v
           new_hash
         end
+        opts[:params] = params_with_defaults
 
-        default = default_opts.reduce({}) do |new_hash, (k, v)|
+        # change the names so that it's api-compliant
+        inject_schema = {
+          :hidden_params => 'hiddenParams'
+        }
+        all_opts = opts.reduce({}) do |new_hash, (k, v)|
           key = inject_schema[k] || k
           new_hash[key] = v
           new_hash
         end
 
-        default[:params] = default_params
-
         json = {
-          'schedule' => default.merge(options.except(:project, :client))
+          'schedule' => all_opts
         }
 
         tmp = json['schedule'][:params]['PROCESS_ID']
