@@ -72,7 +72,10 @@ module GoodData
             fail "Object given by id \"#{item}\" could not be found" if x.nil?
             case x.raw_data.keys.first.to_s
             when 'attribute'
-              GoodData::Attribute.new(x.json).display_forms.first
+              attr = GoodData::Attribute.new(x.json)
+              attr.client = client
+              attr.project = opts[:project]
+              attr.display_forms.first
             when 'attributeDisplayForm'
               GoodData::Label.new(x.json)
             when 'metric'
@@ -117,11 +120,11 @@ module GoodData
 
         metrics = (left + top).select { |item| item.respond_to?(:metric?) && item.metric? }
 
-        unsaved_metrics = metrics.reject { |i| i.saved? }
+        unsaved_metrics = metrics.reject(&:saved?)
         unsaved_metrics.each { |m| m.title = 'Untitled metric' unless m.title }
 
         begin
-          unsaved_metrics.each { |m| m.save }
+          unsaved_metrics.each(&:save)
           rd = GoodData::ReportDefinition.create(options)
           data_result(execute_inline(rd, options), options)
         ensure
@@ -191,7 +194,7 @@ module GoodData
 
         # TODO: Put somewhere for i18n
         fail_msg = 'All metrics in report definition must be saved'
-        fail fail_msg unless (left + top).all? { |i| i.saved? }
+        fail fail_msg unless (left + top).all?(&:saved?)
 
         pars = {
           'reportDefinition' => {
@@ -231,7 +234,7 @@ module GoodData
     end
 
     def attributes
-      labels.map { |label| label.attribute }
+      labels.map(&:attribute)
     end
 
     def labels

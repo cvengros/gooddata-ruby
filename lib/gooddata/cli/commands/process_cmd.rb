@@ -72,7 +72,7 @@ GoodData::CLI.module_eval do
 
     c.desc 'Gives you some basic info about the process'
     c.command :show do |get|
-      get.action do |global_options, options, args|
+      get.action do |global_options, options, _args|
         opts = options.merge(global_options)
         client = GoodData.connect(opts)
         pp GoodData::Command::Process.get(opts.merge(client: client)).raw_data
@@ -81,7 +81,7 @@ GoodData::CLI.module_eval do
 
     c.desc 'Deploys provided directory to the server'
     c.command :deploy do |deploy|
-      deploy.action do |global_options, options, args|
+      deploy.action do |global_options, options, _args|
         opts = options.merge(global_options)
         dir = opts[:dir]
         name = opts[:name]
@@ -95,7 +95,7 @@ GoodData::CLI.module_eval do
 
     c.desc 'Delete specific process'
     c.command :delete do |deploy|
-      deploy.action do |global_options, options, args|
+      deploy.action do |global_options, options, _args|
         opts = options.merge(global_options)
         process_id = opts[:process_id]
         fail 'You have to provide a process id. Use --process_id param' if process_id.nil? || process_id.empty?
@@ -106,11 +106,13 @@ GoodData::CLI.module_eval do
     end
 
     c.desc 'Execute specific deployed process'
+
     c.command :execute do |execute|
-      execute.action do |global_options, command_options, _|
+      execute.action do |global_options, command_options, _args|
         options = command_options.merge(global_options)
         process_id = options[:process_id]
         executable = options[:executable]
+
         fail 'You have to provide a process id. Use --process_id param' if process_id.nil? || process_id.empty?
         fail 'You have to provide an executable for the process. Use --executable param' if executable.nil? || executable.empty?
         client = GoodData.connect(options)
