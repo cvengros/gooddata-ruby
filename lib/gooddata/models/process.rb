@@ -245,14 +245,7 @@ module GoodData
     end
 
     def execute(executable, options = {})
-      params = options[:params] || {}
-      hidden_params = options[:hidden_params] || {}
-      result = client.post(executions_link,
-                           :execution => {
-                             :graph => executable.to_s,
-                             :params => params,
-                             :hiddenParams => hidden_params
-                           })
+      result = start_execution(executable, options)
       begin
         client.poll_on_code(result['executionTask']['links']['poll'])
       rescue RestClient::RequestFailed => e
@@ -265,5 +258,17 @@ module GoodData
       end
       result
     end
+
+    def start_execution(executable, options = {})
+      params = options[:params] || {}
+      hidden_params = options[:hidden_params] || {}
+      client.post(executions_link,
+                  :execution => {
+                   :graph => executable.to_s,
+                   :params => params,
+                   :hiddenParams => hidden_params
+                  })
+    end
+
   end
 end

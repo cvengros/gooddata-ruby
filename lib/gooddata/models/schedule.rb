@@ -88,7 +88,7 @@ module GoodData
         opts[:params] = {
           :process_id => process_id,
           :executable => executable
-        }.merge(opts[:params])
+        }.merge(opts[:params] || {})
 
         # inject there params that are always needed
         inject_params = {
