@@ -103,6 +103,21 @@ module GoodData
           @@instance # rubocop:disable ClassVars
         end
 
+        # Retry block if exception thrown
+        def retryable(options = {}, &_block)
+          opts = { :tries => 1, :on => Exception }.merge(options)
+
+          retry_exception, retries = opts[:on], opts[:tries]
+
+          begin
+            return yield
+          rescue retry_exception
+            retry if (retries -= 1) > 0
+          end
+
+          yield
+        end
+
         alias_method :client, :connection
       end
 
@@ -129,8 +144,8 @@ module GoodData
         @factory = ObjectFactory.new(self)
       end
 
-      def create_project(_options = {})
-        GoodData::Project.create(title: 'Project for schedule testing', auth_token: ConnectionHelper::GD_PROJECT_TOKEN, client: self)
+      def create_project(options = { title: 'Project', auth_token: ENV['GD_PROJECT_TOKEN'] })
+        GoodData::Project.create(title: options[:title], auth_token: options[:auth_token], client: self)
       end
 
       def create_project_from_blueprint(blueprint, options = {})
@@ -194,8 +209,8 @@ module GoodData
       # HTTP GET
       #
       # @param uri [String] Target URI
-      def get(uri, opts = {})
-        @connection.get uri, opts
+      def get(uri, opts = {}, & block)
+        @connection.get uri, opts, & block
       end
 
       # FIXME: Invstigate _file argument
@@ -238,7 +253,7 @@ module GoodData
 
         while response.code == code
           sleep sleep_interval
-          retryable(:tries => 3, :on => RestClient::InternalServerError) do
+          GoodData::Rest::Client.retryable(:tries => 3, :on => RestClient::InternalServerError) do
             sleep sleep_interval
             response = get(link, :process => false)
           end
@@ -264,7 +279,7 @@ module GoodData
         response = get(link)
         while bl.call(response)
           sleep sleep_interval
-          retryable(:tries => 3, :on => RestClient::InternalServerError) do
+          GoodData::Rest::Client.retryable(:tries => 3, :on => RestClient::InternalServerError) do
             sleep sleep_interval
             response = get(link)
           end
@@ -284,21 +299,6 @@ module GoodData
       # @param uri [String] Target URI
       def post(uri, data, opts = {})
         @connection.post uri, data, opts
-      end
-
-      # Retry blok if exception thrown
-      def retryable(options = {}, &_block)
-        opts = { :tries => 1, :on => Exception }.merge(options)
-
-        retry_exception, retries = opts[:on], opts[:tries]
-
-        begin
-          return yield
-        rescue retry_exception
-          retry if (retries -= 1) > 0
-        end
-
-        yield
       end
 
       # Uploads file to staging

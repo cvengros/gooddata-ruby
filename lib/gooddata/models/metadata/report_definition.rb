@@ -134,13 +134,7 @@ module GoodData
 
       def execute_inline(rd, opts = { :client => GoodData.connection, :project => GoodData.project })
         client = opts[:client]
-        fail ArgumentError, 'No :client specified' if client.nil?
-
-        p = opts[:project]
-        fail ArgumentError, 'No :project specified' if p.nil?
-
-        project = GoodData::Project[p, opts]
-        fail ArgumentError, 'Wrong :project specified' if project.nil?
+        project = opts[:project]
 
         rd = rd.respond_to?(:json) ? rd.json : rd
         data = {
@@ -237,6 +231,15 @@ module GoodData
       labels.map(&:attribute)
     end
 
+    # Removes the color mapping from report definition
+    #
+    # @return [GoodData::ReportDefinition] Returns self
+    def reset_color_mapping!
+      global_chart_options = GoodData::Helpers.get_path(content, %w(chart styles global))
+      global_chart_options['colorMapping'] = [] if global_chart_options
+      self
+    end
+
     def labels
       attribute_parts.map { |part| project.labels(part['attribute']['uri']) }
     end
@@ -250,16 +253,21 @@ module GoodData
     end
 
     def execute(opts = { :client => GoodData.connection, :project => GoodData.project })
-      opts = {
-        :client => client,
-        :project => project
-      }
+      client = opts[:client]
+      fail ArgumentError, 'No :client specified' if client.nil?
 
+      p = opts[:project]
+      fail ArgumentError, 'No :project specified' if p.nil?
+
+      project = client.projects(p)
+      fail ArgumentError, 'Wrong :project specified' if project.nil?
+
+      opts = { client: client, project: project }
       result = if saved?
                  pars = {
                    'report_req' => { 'reportDefinition' => uri }
                  }
-                 client.post '/gdc/xtab2/executor', pars
+                 client.post '/gdc/xtab2/executor3', pars
                else
                  ReportDefinition.execute_inline(self, opts)
                end

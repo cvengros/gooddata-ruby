@@ -106,12 +106,11 @@ GoodData::CLI.module_eval do
     end
 
     c.desc 'Execute specific deployed process'
-
-    c.command :execute do |execute|
-      execute.action do |global_options, command_options, _args|
-        options = command_options.merge(global_options)
-        process_id = options[:process_id]
-        executable = options[:executable]
+    c.command :execute do |deploy|
+      deploy.action do |global_options, options, _args|
+        opts = options.merge(global_options)
+        process_id = opts[:process_id]
+        executable = opts[:executable]
 
         fail 'You have to provide a process id. Use --process_id param' if process_id.nil? || process_id.empty?
         fail 'You have to provide an executable for the process. Use --executable param' if executable.nil? || executable.empty?
