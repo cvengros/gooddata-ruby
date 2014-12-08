@@ -2,6 +2,10 @@
 
 require_relative '../rest/resource'
 require_relative '../extensions/hash'
+require_relative '../mixins/rest_resource'
+require_relative '../helpers/global_helpers'
+
+require_relative 'execution'
 
 module GoodData
   class Schedule < Rest::Resource
@@ -10,6 +14,9 @@ module GoodData
     alias_method :data, :json
     alias_method :raw_data, :json
     alias_method :to_hash, :json
+
+    include GoodData::Mixin::RestResource
+    root_key :schedule
 
     class << self
       # Looks for schedule
@@ -58,11 +65,11 @@ module GoodData
       # Creates new schedules from parameters passed
       #
       # @param process_id [String] Process ID
-      # @param cron [String] Cron Settings
+      # @param trigger [String|GoodData::Schedule] Trigger of schedule. Can be cron string or reference to another schedule.
       # @param executable [String] Execution executable
       # @param options [Hash] Optional options
       # @return [GoodData::Schedule] New GoodData::Schedule instance
-      def create(process_id, cron, executable, options = {})
+      def create(process_id, trigger, executable, options = {})
         c = client(options)
         fail ArgumentError, 'No :client specified' if c.nil?
 
@@ -75,61 +82,56 @@ module GoodData
         default_opts = {
           :type => 'MSETL',
           :timezone => 'UTC',
-          :cron => cron,
-          :params => {},
-          :hidden_params => {},
+          :params => {
+            :PROCESS_ID => process_id,
+            :EXECUTABLE => executable
+          },
+          :hiddenParams => {},
           :reschedule => options[:reschedule] || 0
         }
 
-        # merge the user given params to opts
-        opts = default_opts.merge(options.except(:project, :client))
-
-        # merge the defaults to params
-        opts[:params] = {
-          :process_id => process_id,
-          :executable => executable
-        }.merge(opts[:params] || {})
-
-        # inject there params that are always needed
-        inject_params = {
-          :process_id => 'PROCESS_ID',
-          :executable => 'EXECUTABLE'
-        }
-        params_with_defaults = opts[:params].reduce({}) do |new_hash, (k, v)|
-          key = inject_params[k] || k
-          new_hash[key] = v
-          new_hash
+        if trigger =~ /[a-fA-Z0-9]{24}/
+          default_opts[:triggerScheduleId] = trigger
+        elsif trigger.is_a?(GoodData::Schedule)
+          default_opts[:triggerScheduleId] = trigger.obj_id
+        else
+          default_opts[:cron] = trigger
         end
         opts[:params] = params_with_defaults
 
-        # change the names so that it's api-compliant
-        inject_schema = {
-          :hidden_params => 'hiddenParams'
-        }
-        all_opts = opts.reduce({}) do |new_hash, (k, v)|
-          key = inject_schema[k] || k
-          new_hash[key] = v
-          new_hash
+        if options.key?(:hidden_params)
+          options[:hiddenParams] = options[:hidden_params]
+          options.delete :hidden_params
         end
 
         json = {
-          'schedule' => all_opts
+          'schedule' => default_opts.deep_merge(options.except(:project, :client))
         }
 
-        tmp = json['schedule'][:params]['PROCESS_ID']
+        tmp = json['schedule'][:params][:PROCESS_ID]
         fail 'Process ID has to be provided' if tmp.nil? || tmp.empty?
 
-        tmp = json['schedule'][:params]['EXECUTABLE']
+        tmp = json['schedule'][:params][:EXECUTABLE]
         fail 'Executable has to be provided' if tmp.nil? || tmp.empty?
 
-        tmp = json['schedule'][:cron]
-        fail 'Cron schedule has to be provided' if tmp.nil? || tmp.empty?
+        tmp = json['schedule'][:cron] || json['schedule'][:triggerScheduleId]
+        fail 'trigger schedule has to be provided' if !tmp || tmp.nil? || tmp.empty?
 
         tmp = json['schedule'][:timezone]
         fail 'A timezone has to be provided' if tmp.nil? || tmp.empty?
 
         tmp = json['schedule'][:type]
         fail 'Schedule type has to be provided' if tmp.nil? || tmp.empty?
+
+        params = json['schedule'][:params]
+        params = GoodData::Helpers.encode_params(params, false)
+        json['schedule'][:params] = params
+
+        hidden_params = json['schedule'][:hiddenParams]
+        if hidden_params && !hidden_params.empty?
+          hidden_params = GoodData::Helpers.encode_params(json['schedule'][:hiddenParams], true)
+          json['schedule'][:hiddenParams] = hidden_params
+        end
 
         url = "/gdc/projects/#{project.pid}/schedules"
         res = c.post url, json
@@ -195,9 +197,10 @@ module GoodData
         :execution => {}
       }
       execution = client.post(execution_url, data)
-      client.poll_on_response(execution['execution']['links']['self']) do |body|
+      res = client.poll_on_response(execution['execution']['links']['self']) do |body|
         body['execution'] && (body['execution']['status'] == 'RUNNING' || body['execution']['status'] == 'SCHEDULED')
       end
+      client.create(GoodData::Execution, res, client: client, project: project)
     end
 
     # Returns execution URL
